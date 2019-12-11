@@ -9,6 +9,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <string.h>
+#include <unistd.h>
+
 int main(int argc, char *argv[])
 {
     int client_sockfd;
@@ -33,9 +36,9 @@ int main(int argc, char *argv[])
         perror("connect");
         return 1;
     }
-    printf("connected to server/n");
+    printf("connected to server\n");
     len=recv(client_sockfd,buf,BUFSIZ,0);//接收服务器端信息
-    buf[len]='/0';
+    buf[len]='\0';
     printf("%s",buf); //打印服务器端信息
 
     /*循环的发送接收信息并打印接收信息--recv返回接收到的字节数，send返回发送的字节数*/
@@ -43,13 +46,13 @@ int main(int argc, char *argv[])
     {
         printf("Enter string to send:");
         scanf("%s",buf);
-        if(!strcmp(buf,"quit")
-                break;
-                len=send(client_sockfd,buf,strlen(buf),0);
-                len=recv(client_sockfd,buf,BUFSIZ,0);
-                buf[len]='/0';
-                printf("received:%s/n",buf);
-                }
-                close(client_sockfd);//关闭套接字
-                return 0;
-                }
+        if(!strcmp(buf,"quit"))
+            break;
+        len=send(client_sockfd,buf,strlen(buf),0);
+        len=recv(client_sockfd,buf,BUFSIZ,0);
+        buf[len]='\0';
+        printf("received:%s\n",buf);
+    }
+    close(client_sockfd);//关闭套接字
+    return 0;
+}

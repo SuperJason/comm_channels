@@ -2,11 +2,15 @@
  * udp_client.c
  * https://blog.csdn.net/piaojun_pj/article/details/5920888
  */
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#include <string.h>
+#include <unistd.h>
 
 int main(int argc, char *argv[])
 {
@@ -27,7 +31,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     strcpy(buf,"This is a test message");
-    printf("sending: '%s'/n",buf);
+    printf("sending: '%s'\n",buf);
     sin_size=sizeof(struct sockaddr_in);
 
     /*向服务器发送数据包*/
