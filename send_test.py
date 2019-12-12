@@ -8,17 +8,16 @@ import time
 
 if __name__ == '__main__':
 
-    d = np.arange(12, dtype=np.uint8)
+    length = 512 
+    d = np.arange(length + 8, dtype=np.uint8)
     d[0] = 0
     d[1] = 0
-    d[2] = 4
-    d[3] = 0
+    d[2] = length & 0xff
+    d[3] = (length >> 8) & 0xff
 
     poly = 0x104C11DB7
-    print(hex(poly) + ': ' + bin(poly))
     crc32_func = crcmod.mkCrcFun(poly, initCrc=0xffffffff, rev=True, xorOut=0x00000000)
     crc32_val = crc32_func(bytes(d[0:-4]))
-    print('data\'s crc32: 0x%x'%crc32_func(bytes(d[0:8])))
     print('crc32_val: 0x%x'%crc32_val)
 
     d[-4] = crc32_val & 0xff

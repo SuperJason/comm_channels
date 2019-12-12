@@ -132,6 +132,9 @@ int msg_packet_check(uint8_t *data, int32_t length)
     uint16_t len = data[2] | (data[3] << 8);
     uint32_t crc32_val;
 
+#ifdef CHANNLS_DEBUG
+    printf(" [DEBUG] %s:%d id: %d, len: %d\n", __func__, __LINE__, id, len);
+#endif
     if (id >= CHANNEL_MAX)
         return -1;
 
@@ -143,6 +146,9 @@ int msg_packet_check(uint8_t *data, int32_t length)
     crc32_val |= (data[4 + len + 2] << 16);
     crc32_val |= (data[4 + len + 3] << 24);
 
+#ifdef CHANNLS_DEBUG
+    printf(" [DEBUG] %s:%d crc32_val: 0x%04x(0x%04x)\n", __func__, __LINE__, crc32_val, crc32(data, len + 4));
+#endif
     if (crc32(data, len + 4) != crc32_val)
         return -1;
 
@@ -314,7 +320,7 @@ int main(int argc, char *argv[])
         *p_short = i;
     }
 
-    /* Debug */
+    /* Debug
     queue_packet(0, &buff[0], 10);
     queue_packet(0, &buff[0], 11);
     queue_packet(1, &buff[1024], 20);
@@ -327,6 +333,7 @@ int main(int argc, char *argv[])
     queue_packet(2, &buff[2048], 32);
 
     channels_packet_show();
+    */
 
     printf(" [DEBUG] %s:%d\n", __func__, __LINE__);
     /* pipo init */
