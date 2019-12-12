@@ -3,7 +3,7 @@ CC := gcc
 all: tcp_client tcp_server udp_client udp_server channels
 
 channels: channels.c list.h
-	$(CC) $< -o $@
+	$(CC) $< -o $@ -lpthread
 
 tcp_client: tcp_client.c
 	$(CC) $< -o $@
