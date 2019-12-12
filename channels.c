@@ -11,7 +11,12 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+/* thread */
 #include<pthread.h>
+
+/* pipo */
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define CHANNEL_MAX 4
 
@@ -78,7 +83,79 @@ int queue_packet(int id, uint8_t *data, uint32_t len)
     new = new_packet(data, len);
     list_add_tail(&new->tx_packet, &(channels[id].tx_packets_head));
 
+    printf(" [DEBUG] %s:%d, channel: %d, len: %d, packet queue\n", __func__, __LINE__, id, len);
     return 0;
+}
+
+#define CRC32_POLYNOMIAL_REV 0xedb88320l
+uint32_t crc32(uint8_t *buf, uint32_t len)
+{
+    uint32_t crc = 0xffffffff;
+    uint32_t crc_temp;
+    int j;
+
+    while (len > 0) {
+        crc_temp = (crc ^ *buf) & 0xff;
+        for (j = 8; j > 0; j--) {
+            if (crc_temp & 1)
+                crc_temp = (crc_temp >> 1)^CRC32_POLYNOMIAL_REV;
+            else
+                crc_temp >>= 1;
+        }
+        crc = ((crc >> 8) & 0x00FFFFFFL)^crc_temp;
+        len--;
+        buf++;
+    }
+
+    return(crc);
+}
+
+/*
+ * msg_packet:
+ * +----+-----+-----+----------+-----+
+ * | id | res | len |   data   | crc |
+ * +----+-----+-----+----------+-----+
+ * id  : 1 byte, channel id
+ * res : 1 byte, reserved
+ * len : 2 byte, data length
+ * data: data content
+ * crc : 4 byte, id + length + data's crc32
+ * MSB
+ *
+ * return:
+ *   0: valied msg packet
+ *  -1: invalided msg packet
+ */
+int msg_packet_check(uint8_t *data, int32_t length)
+{
+    uint8_t id = data[0];
+    uint16_t len = data[2] | (data[3] << 8);
+    uint32_t crc32_val;
+
+    if (id >= CHANNEL_MAX)
+        return -1;
+
+    if (length < len + 7)
+        return -1;
+
+    crc32_val = data[4 + len];
+    crc32_val |= (data[4 + len + 1] <<  8);
+    crc32_val |= (data[4 + len + 2] << 16);
+    crc32_val |= (data[4 + len + 3] << 24);
+
+    if (crc32(data, len + 4) != crc32_val)
+        return -1;
+
+    return 0;
+}
+
+void process_msg_packet(uint8_t *data)
+{
+    uint8_t id = data[0];
+    uint16_t len = data[2] | (data[3] << 8);
+    uint8_t *p_u8 = data + 4;
+
+    queue_packet(id, p_u8, len);
 }
 
 void channels_packet_show()
@@ -183,6 +260,9 @@ server_out:
     close(server_sockfd);
 }
 
+char *server_pipe_name = "server_channel_fifo";
+char *client_pipe_name = "client_channel_fifo";
+
 #define BUFFER_SIZE 4096
 uint8_t buff[BUFFER_SIZE];
 int main(int argc, char *argv[])
@@ -191,7 +271,10 @@ int main(int argc, char *argv[])
     uint16_t *p_short;
     channel_packet_t *pp;
     pthread_t tcp_tid;
-    int ret = 0;
+    int ret = 0, len;
+
+    char *pipe_name = server_pipe_name;
+    int pipe_fd;
 
     g_sock_addr = INADDR_ANY;
     g_sock_port = TCP_COMM_PORT;
@@ -208,6 +291,7 @@ int main(int argc, char *argv[])
                 break;
             case 'c':
                 is_client = 1;
+                pipe_name = client_pipe_name;
                 printf("socket connecting as client!\n");
                 break;
             case '?':
@@ -220,7 +304,6 @@ int main(int argc, char *argv[])
 
 
     printf("This is a sample code for communication!\n");
-    printf(" [DEB] %s:%d\n", __func__, __LINE__);
 
     /* init channels */
     channels_init();
@@ -245,6 +328,16 @@ int main(int argc, char *argv[])
 
     channels_packet_show();
 
+    printf(" [DEBUG] %s:%d\n", __func__, __LINE__);
+    /* pipo init */
+    if (access(pipe_name, F_OK) == -1) {
+        ret = mkfifo(pipe_name, 0664);
+        if (ret != 0) {
+            perror("main: mkfifo failed\n");
+            return -1;
+        }
+    }
+
     if (is_client) {/* Works as client */
         ret = pthread_create(&tcp_tid, NULL, tcp_thread_client, NULL);
     } else {/* By default works as server */
@@ -258,12 +351,18 @@ int main(int argc, char *argv[])
     while(1)
     {
         memset(buff, 0, BUFFER_SIZE);
-        printf("main -- enter string to send: \n");
-        scanf("%s", buff);
-        if(!strcmp(buff,"quit"))
+        pipe_fd = open(pipe_name, O_RDONLY);
+        len = read(pipe_fd, buff, BUFFER_SIZE);
+        printf("pipe read data: (%d) %s\n", len, buff);
+        if(!strncmp(buff, "quit", 4))
             break;
-        send(client_sockfd, buff, strlen(buff), 0);
+        if (!msg_packet_check(buff, len)) {
+            process_msg_packet(buff);
+        }
+        close(pipe_fd);
     }
 
+    /* Remove fifo */
+    unlink(pipe_name);
     return 0;
 }
