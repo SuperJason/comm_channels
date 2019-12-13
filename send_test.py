@@ -8,8 +8,8 @@ import time
 
 if __name__ == '__main__':
 
-    length = 512 
-    d = np.arange(length + 8, dtype=np.uint8)
+    length = 256
+    d = np.arange(length + 8, dtype=np.uint8) - 3
     d[0] = 0
     d[1] = 0
     d[2] = length & 0xff
@@ -24,7 +24,13 @@ if __name__ == '__main__':
     d[-3] = (crc32_val >>  8) & 0xff
     d[-2] = (crc32_val >> 16) & 0xff
     d[-1] = (crc32_val >> 24) & 0xff
-    server_fifo_fd = open('server_channel_fifo', 'wb')
+
+    for j in range((length + 8 + 16) // 16):
+        print(['%02x'%i for i in d[j*16:j*16+16]])
+
+    server_fifo_name = 'server_channel_fifo'
+
+    server_fifo_fd = open(server_fifo_name, 'wb')
     server_fifo_fd.write(d)
     server_fifo_fd.close()
 
