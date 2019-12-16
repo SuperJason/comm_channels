@@ -68,6 +68,7 @@ typedef struct channel_packet {
     uint8_t *data;
 } channel_packet_t;
 uint8_t rx_packet_buff[4096];
+int rx_packet_len;
 channel_packet_t *new_packet(uint8_t *data, uint32_t len);
 int queue_packet(int id, uint8_t *data, uint32_t len);
 int msg_packet_check(uint8_t *data, int32_t length);
@@ -94,6 +95,7 @@ void *tcp_thread_tx(void *data);
 
 /* other */
 sem_t sem_packet_tx;
+sem_t sem_packet_rx;
 sem_t sem_frame_tx;
 int response_status;
 int is_client;

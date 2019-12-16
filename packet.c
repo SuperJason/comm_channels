@@ -161,6 +161,8 @@ void process_rx_packet(uint8_t *data, int len)
                 if (crc32(rx_packet_buff, packet_length + 4) == crc32_val) {
 #ifdef CHANNLS_DEBUG
                     printf(" [DEBUG] %s:%d length %d packet rx\n", __func__, __LINE__, packet_length);
+                    rx_packet_len = rx_len;
+                    sem_post(&sem_packet_rx);
 #endif
                 } else {
                     printf("%s: crc failed! crc32_val: 0x%04x, calc crc32: 0x%04x\n", __func__, crc32_val, crc32(rx_packet_buff, packet_length + 4));

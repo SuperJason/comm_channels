@@ -77,6 +77,7 @@ int main(int argc, char *argv[])
     }
 
     sem_init(&sem_packet_tx, 0, 0);
+    sem_init(&sem_packet_rx, 0, 0);
     sem_init(&sem_frame_tx, 0, 0);
 
     ret = pthread_create(&tcp_tid_tx, NULL, tcp_thread_tx, NULL);
@@ -88,22 +89,34 @@ int main(int argc, char *argv[])
     while(1)
     {
         memset(buff, 0, BUFFER_SIZE);
-        pipe_fd = open(pipe_name, O_RDONLY);
-        len = read(pipe_fd, buff, BUFFER_SIZE);
-        printf("pipe read data: (%d) %s\n", len, buff);
-        if(!strncmp(buff, "quit", 4))
+        if (is_client) {
+            sem_wait(&sem_packet_rx);
+            pipe_fd = open(pipe_name, O_WRONLY);
+            printf("pipe write data: (%d) %s\n", rx_packet_len, rx_packet_buff);
+            write(pipe_fd, rx_packet_buff, rx_packet_len);
+            close(pipe_fd);
             break;
-        if(!strncmp(buff, "show", 4))
-            channels_packet_show();
-        if (!msg_packet_check(buff, len)) {
-            process_msg_packet(buff);
+        } else {
+            pipe_fd = open(pipe_name, O_RDONLY);
+            len = read(pipe_fd, buff, BUFFER_SIZE);
+            printf("pipe read data: (%d) %s\n", len, buff);
+            if(!strncmp(buff, "quit", 4))
+                break;
+            if(!strncmp(buff, "show", 4))
+                channels_packet_show();
+            if (!msg_packet_check(buff, len)) {
+                process_msg_packet(buff);
+            }
+            close(pipe_fd);
         }
-        close(pipe_fd);
     }
 
     /* Remove fifo */
     unlink(pipe_name);
     sem_destroy(&sem_packet_tx);
     sem_destroy(&sem_frame_tx);
+    close(server_sockfd);
+    if (!is_client)
+        close(client_sockfd);
     return 0;
 }
