@@ -61,7 +61,7 @@ void send_frames(int id)
         printf("pllf->data: %p\n", pllf->data);
         hex_dump(pllf->data, len);
 #endif
-        send(client_sockfd, frame_buffer, len + 2, 0);
+        //send(client_sockfd, frame_buffer, len + 2, 0);
 #ifdef CHANNLS_DEBUG
         count++;
         frame_dump(frame_buffer);
@@ -173,7 +173,7 @@ int process_rx_frame(uint8_t *data, int32_t length)
         resp_buff[0] = id;
         resp_buff[1] = 8;
         strncpy(&resp_buff[2], "resp:ok", 7);
-        send(client_sockfd, resp_buff, 8 +2, 0);
+        //send(client_sockfd, resp_buff, 8 +2, 0);
     }
     sem_post(&sem_frame_tx);
 

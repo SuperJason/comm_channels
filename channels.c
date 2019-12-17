@@ -11,38 +11,48 @@ int channels_init()
     }
 }
 
-char *server_pipe_name = "server_channel_fifo";
-char *client_pipe_name = "client_channel_fifo";
+int main_loop_state = 1;
 
-#define BUFFER_SIZE 4096
-uint8_t buff[BUFFER_SIZE];
+static int msg_receive(char *buf, int len)
+{
+    char *quit_cmd = "rx_quit";
+
+    printf("%s: (%d) %s\n", __func__, len, buf);
+
+    if(!strncmp(buf, quit_cmd, strlen(quit_cmd)))
+        main_loop_state = 0;
+
+    tcp_frame_send(buf, len);
+}
+
+static int frame_receive(char *buf, int len)
+{
+    printf("%s: (%d) %s\n", __func__, len, buf);
+    pipe_msg_send(buf, len);
+}
+
 int main(int argc, char *argv[])
 {
-    int i;
-    uint16_t *p_short;
-    channel_packet_t *pp;
-    pthread_t tcp_tid_tx;
-    int ret = 0, len;
+    int opt;
+    int ret, len;
+    in_addr_t sock_addr;
+    signed short sock_port;
 
-    char *pipe_name = server_pipe_name;
-    int pipe_fd;
+    sock_addr = INADDR_ANY;
+    sock_port = TCP_COMM_PORT;
 
-    g_sock_addr = INADDR_ANY;
-    g_sock_port = TCP_COMM_PORT;
-
-    while((i = getopt(argc, argv, "ca:p:")) != -1) {
-        switch(i) {
+    while((opt = getopt(argc, argv, "ca:p:")) != -1) {
+        switch(opt) {
             case 'a':
                 printf("ipaddr: %s\n", optarg);
-                g_sock_addr = inet_addr(optarg);
+                sock_addr = inet_addr(optarg);
                 break;
             case 'p':
                 printf("port: %s\n", optarg);
-                g_sock_port = atol(optarg);
+                sock_port = atol(optarg);
                 break;
             case 'c':
                 is_client = 1;
-                pipe_name = client_pipe_name;
                 printf("socket connecting as client!\n");
                 break;
             case '?':
@@ -53,70 +63,24 @@ int main(int argc, char *argv[])
         }
     }
 
-
     printf("This is a sample code for communication!\n");
-
-    /* init channels */
-    channels_init();
-
-    /* init buffer */
-    for (i = 0; i < BUFFER_SIZE / sizeof(uint16_t); i++) {
-        p_short = (uint16_t *)&buff[i * sizeof(uint16_t)];
-        *p_short = i;
-    }
-
     printf(" [DEBUG] %s:%d\n", __func__, __LINE__);
 
-    /* pipo init */
-    if (access(pipe_name, F_OK) == -1) {
-        ret = mkfifo(pipe_name, 0664);
-        if (ret != 0) {
-            perror("main: mkfifo failed\n");
-            return -1;
-        }
+    /* pipe init */
+    pipe_init(is_client);
+    register_pipe_receive_cb(msg_receive);
+
+    /* tcp connection init */
+    tcp_init(is_client, sock_addr, sock_port);
+    register_tcp_receive_cb(frame_receive);
+
+    while (main_loop_state) {
     }
 
-    sem_init(&sem_packet_tx, 0, 0);
-    sem_init(&sem_packet_rx, 0, 0);
-    sem_init(&sem_frame_tx, 0, 0);
+    printf("%s():exit\n", __func__);
 
-    ret = pthread_create(&tcp_tid_tx, NULL, tcp_thread_tx, NULL);
-    if(ret != 0) {
-        perror("tcp thread create");
-        return -1;
-    }
+    pipe_deinit();
+    tcp_deinit();
 
-    while(1)
-    {
-        memset(buff, 0, BUFFER_SIZE);
-        if (is_client) {
-            sem_wait(&sem_packet_rx);
-            pipe_fd = open(pipe_name, O_WRONLY);
-            printf("pipe write data: (%d) %s\n", rx_packet_len, rx_packet_buff);
-            write(pipe_fd, rx_packet_buff, rx_packet_len);
-            close(pipe_fd);
-            break;
-        } else {
-            pipe_fd = open(pipe_name, O_RDONLY);
-            len = read(pipe_fd, buff, BUFFER_SIZE);
-            printf("pipe read data: (%d) %s\n", len, buff);
-            if(!strncmp(buff, "quit", 4))
-                break;
-            if(!strncmp(buff, "show", 4))
-                channels_packet_show();
-            if (!msg_packet_check(buff, len)) {
-                process_msg_packet(buff);
-            }
-            close(pipe_fd);
-        }
-    }
-
-    /* Remove fifo */
-    unlink(pipe_name);
-    sem_destroy(&sem_packet_tx);
-    sem_destroy(&sem_frame_tx);
-    close(server_sockfd);
-    if (!is_client)
-        close(client_sockfd);
     return 0;
 }

@@ -11,7 +11,7 @@ def crc32(data):
     poly = 0x104C11DB7
     crc32_func = crcmod.mkCrcFun(poly, initCrc=0xffffffff, rev=True, xorOut=0x00000000)
     crc32_val = crc32_func(bytes(data))
-    print('crc32_val: 0x%x'%crc32_val)
+    #print('crc32_val: 0x%x'%crc32_val)
 
     return crc32_val
 
@@ -31,21 +31,58 @@ def packet_generate(channel_id, data):
 
     return packet
 
-def rx_process(arg):
-    print('rx_process: ' + arg)
+def packet_check(data):
+    if len(data) < 4:
+        return False
+    channel_id = data[0]
+    length = data[2] | (data[3] << 8)
+    if len(data) < length + 8:
+        return False
+    crc32_val  = data[length+8-4]
+    crc32_val |= data[length+8-3] << 8
+    crc32_val |= data[length+8-2] << 16
+    crc32_val |= data[length+8-1] << 24
+    if crc32_val != crc32(data[:length+8-4]):
+        print('crc32_val(0x%x) != crc32()(0x%x)'%(crc32_val, crc32(data[:length+8-4])))
+        return False
+    return True
 
-    client_fifo_name = 'client_channel_fifo'
-    client_fifo_fd = open(client_fifo_name, 'rb')
-    rx_data = client_fifo_fd.read()
-    length = len(rx_data)
-    for i in range((length+8+16)//16):
-        print('rx_process: ' + str(['%02x'%d for d in rx_data[i*16:i*16+16]]))
-    client_fifo_fd.close()
+def cli_rx_process(arg):
+    print('cli_rx_proc: entry')
+
+    fifo_name = 'cli_receive_fifo'
+    while True:
+        fifo_fd = open(fifo_name, 'rb')
+        rx_data = fifo_fd.read()
+        length = len(rx_data)
+        if packet_check(rx_data):
+            print('cli_rx_proc: channel[%d] packet received'%rx_data[0])
+        else:
+            for i in range((length+8+16)//16):
+                print('cli_rx_proc: ' + str(['%02x'%d for d in rx_data[i*16:i*16+16]]))
+        fifo_fd.close()
+
+def srv_rx_process(arg):
+    print('srv_rx_proc: entry')
+
+    fifo_name = 'srv_receive_fifo'
+    while True:
+        fifo_fd = open(fifo_name, 'rb')
+        rx_data = fifo_fd.read()
+        length = len(rx_data)
+        if packet_check(rx_data):
+            print('srv_rx_proc: channel[%d] packet received'%rx_data[0])
+        else:
+            for i in range((length+8+16)//16):
+                print('srv_rx_proc: ' + str(['%02x'%d for d in rx_data[i*16:i*16+16]]))
+        fifo_fd.close()
 
 if __name__ == '__main__':
 
-    rx_proc = multiprocessing.Process(target=rx_process, args=('rx', ))
-    rx_proc.start()
+    cli_rx_proc = multiprocessing.Process(target=cli_rx_process, args=('cli_rx', ))
+    cli_rx_proc.start()
+    srv_rx_proc = multiprocessing.Process(target=srv_rx_process, args=('srv_rx', ))
+    srv_rx_proc.start()
 
     length = 32
     data = np.arange(length, dtype=np.uint8) + 1
@@ -53,15 +90,31 @@ if __name__ == '__main__':
     for i in range((length+8+16)//16):
         print('main: ' + str(['%02x'%d for d in packet[i*16:i*16+16]]))
 
-    server_fifo_name = 'server_channel_fifo'
+    sending_repeated_times = 10
 
-    server_fifo_fd = open(server_fifo_name, 'wb')
-    server_fifo_fd.write(packet)
+    fifo_name = 'srv_send_fifo'
+    for i in range(sending_repeated_times):
+        print('main: packet sending via %s'%fifo_name)
+        fifo_fd = open(fifo_name, 'wb')
+        fifo_fd.write(packet)
+        fifo_fd.close()
+        time.sleep(0.5)
+
+    fifo_name = 'cli_send_fifo'
+    for i in range(sending_repeated_times):
+        print('main: packet sending via %s'%fifo_name)
+        fifo_fd = open(fifo_name, 'wb')
+        fifo_fd.write(packet)
+        fifo_fd.close()
+        time.sleep(0.5)
+
+    cli_rx_proc.terminate()
+    srv_rx_proc.terminate()
+
+    server_fifo_fd = open('srv_send_fifo', 'wb')
+    server_fifo_fd.write(b'rx_quit\0')
     server_fifo_fd.close()
 
-    time.sleep(0.2)
-
-    server_fifo_fd = open('server_channel_fifo', 'wb')
-    server_fifo_fd.write(b'quit')
+    server_fifo_fd = open('cli_send_fifo', 'wb')
+    server_fifo_fd.write(b'rx_quit\0')
     server_fifo_fd.close()
-    rx_proc.join()

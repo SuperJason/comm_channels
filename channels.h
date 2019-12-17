@@ -9,10 +9,8 @@
 #include <unistd.h>
 
 /* tcp needed */
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#define TCP_COMM_PORT 8000
 
 /* thread */
 #include<pthread.h>
@@ -82,16 +80,16 @@ void process_rx_packet(uint8_t *data, int len);
 uint32_t crc32(uint8_t *buf, uint32_t len);
 
 /* pipe */
+int pipe_init(int is_client);
+void pipe_deinit();
+int register_pipe_receive_cb(int (*cb)(char *, int));
+int pipe_msg_send(char *buf, int len);
 
 /* tcp */
-#define TCP_COMM_PORT 8000
-int server_sockfd;
-int client_sockfd;
-in_addr_t g_sock_addr;
-signed short g_sock_port;
-char rx_buff[4096];
-void *tcp_thread_rx(void *data);
-void *tcp_thread_tx(void *data);
+int tcp_init(int is_client, in_addr_t sock_addr, signed short sock_port);
+void tcp_deinit();
+int register_tcp_receive_cb(int (*cb)(char *, int));
+int tcp_frame_send(char *buf, int len);
 
 /* other */
 sem_t sem_packet_tx;
