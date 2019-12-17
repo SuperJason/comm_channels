@@ -1,5 +1,9 @@
 #include "channels.h"
 
+/* #define DEBUG */
+#define LOG_TAGS "CHANNELS"
+#include "log.h"
+
 int channels_init()
 {
     int i;
@@ -17,7 +21,7 @@ static int msg_receive(char *buf, int len)
 {
     char *quit_cmd = "rx_quit";
 
-    printf("%s: (%d) %s\n", __func__, len, buf);
+    pr_debug("%s: (%d) %s\n", __func__, len, buf);
 
     if(!strncmp(buf, quit_cmd, strlen(quit_cmd)))
         main_loop_state = 0;
@@ -27,7 +31,7 @@ static int msg_receive(char *buf, int len)
 
 static int frame_receive(char *buf, int len)
 {
-    printf("%s: (%d) %s\n", __func__, len, buf);
+    pr_debug("%s: (%d) %s\n", __func__, len, buf);
     pipe_msg_send(buf, len);
 }
 
@@ -44,27 +48,27 @@ int main(int argc, char *argv[])
     while((opt = getopt(argc, argv, "ca:p:")) != -1) {
         switch(opt) {
             case 'a':
-                printf("ipaddr: %s\n", optarg);
+                pr_notice("ipaddr: %s\n", optarg);
                 sock_addr = inet_addr(optarg);
                 break;
             case 'p':
-                printf("port: %s\n", optarg);
+                pr_notice("port: %s\n", optarg);
                 sock_port = atol(optarg);
                 break;
             case 'c':
                 is_client = 1;
-                printf("socket connecting as client!\n");
+                pr_notice("socket connecting as client!\n");
                 break;
             case '?':
-                printf("unknown option\n");
+                pr_notice("unknown option\n");
                 break;
             default:
-                printf("default \n");
+                pr_notice("default \n");
         }
     }
 
-    printf("This is a sample code for communication!\n");
-    printf(" [DEBUG] %s:%d\n", __func__, __LINE__);
+    pr_notice("This is a sample code for communication!\n");
+    pr_debug(" [DEBUG] %s:%d\n", __func__, __LINE__);
 
     /* pipe init */
     pipe_init(is_client);
@@ -77,7 +81,7 @@ int main(int argc, char *argv[])
     while (main_loop_state) {
     }
 
-    printf("%s():exit\n", __func__);
+    pr_notice("%s():exit\n", __func__);
 
     pipe_deinit();
     tcp_deinit();

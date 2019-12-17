@@ -7,6 +7,10 @@
 #include <limits.h> /* PIPE_BUF */
 #include <pthread.h>
 
+/* #define DEBUG */
+#define LOG_TAGS "PIPE"
+#include "log.h"
+
 #define PIPE_BUF_SIZE PIPE_BUF
 
 typedef struct pipe_conf_data {
@@ -37,7 +41,7 @@ static int pipe_create(char *name)
     if (access(name, F_OK) == -1) {
         ret = mkfifo(name, 0664);
         if (ret != 0) {
-            printf("main: mkfifo %s failed\n", name);
+            pr_err("pipe_create() mkfifo %s failed\n", name);
         }
     }
 
@@ -57,7 +61,7 @@ static void *pipe_rx_thread(void *data)
         pipe_fd = open(name, O_RDONLY);
         pthread_mutex_lock(&conf_data->rx_mutex);
         len = read(pipe_fd, buf, PIPE_BUF);
-        printf("pipe read data: (%d) %s\n", len, buf);
+        pr_debug("pipe read data: (%d) %s\n", len, buf);
 
         if(!strncmp(buf, quit_cmd, strlen(quit_cmd)))
             conf_data->rx_thread_running = 0;
@@ -67,7 +71,7 @@ static void *pipe_rx_thread(void *data)
         pthread_mutex_unlock(&conf_data->rx_mutex);
         close(pipe_fd);
     }
-    printf("%s():exit\n", __func__);
+    pr_notice("%s():exit\n", __func__);
 }
 
 int pipe_init(int is_client)
@@ -99,7 +103,7 @@ int pipe_init(int is_client)
     conf_data->rx_thread_running = 1;
     ret = pthread_create(&conf_data->rx_tid, NULL, pipe_rx_thread, conf_data);
     if(ret != 0) {
-        printf("%s: pipe rx thread creation failed!\n", __func__);
+        pr_err("%s: pipe rx thread creation failed!\n", __func__);
         return -1;
     }
 
@@ -137,7 +141,7 @@ int pipe_msg_send(char *buf, int len)
     pipe_conf_data_t *conf_data = &g_pipe_conf_data;
 
     pipe_fd = open(conf_data->tx_pipe_name, O_WRONLY);
-    printf("%s: (%d) %s\n", __func__, len, buf);
+    pr_debug("%s: (%d) %s\n", __func__, len, buf);
     write(pipe_fd, buf, len);
     close(pipe_fd);
 }
